@@ -15,6 +15,11 @@ namespace pusher
         using signal_filter = detail::client::signal_filter<std::string(*)(event const&)>;
         signal_filter* signal_filter_;
     public:
+        channel_proxy():
+            signal_filter_(nullptr)
+        {
+
+        }
         explicit channel_proxy(signal_filter* signal_filter) : signal_filter_{signal_filter}
         {}
 

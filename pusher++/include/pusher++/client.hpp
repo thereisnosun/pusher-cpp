@@ -6,6 +6,7 @@
 #ifndef PUSHERPP_CLIENT_HPP
 #define PUSHERPP_CLIENT_HPP
 
+#include <boost/asio/ssl/stream.hpp>
 #include <boost/asio/async_result.hpp>
 #include <boost/asio/connect.hpp>
 #include <boost/asio/buffer.hpp>
@@ -13,6 +14,7 @@
 #include <boost/asio/io_service.hpp>
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/beast/core/flat_buffer.hpp>
+#include <boost/beast/websocket/ssl.hpp>
 #include <boost/beast/websocket.hpp>
 #include <iostream>
 #include <string>
@@ -51,6 +53,18 @@ namespace pusher
           , filtered_events_{detail::client::filtered_signal(&detail::client::by_name)}
         {}
 
+        client(boost::asio::io_service& ios, boost::asio::ssl::context& ctx, std::string key, std::string token, std::string cluster = "mt1")
+          : socket_{ios, ctx}
+          , resolver_{ios}
+          , host_{"ws-" + std::move(cluster) + ".pusher.com"}
+          , handshake_resource_{"/app/" + std::move(key) + "?client=pusher++&version=0.01&protocol=7"}
+          , auth_end_point_{"/pusher/auth/?token=" + std::move(token)}
+         , events_{}
+          , filtered_channels_{detail::client::filtered_signal(&detail::client::by_channel)}
+          , filtered_events_{detail::client::filtered_signal(&detail::client::by_name)}
+        {}
+
+
         void initialise()
         {
             filtered_channels_.connect_source(events_);
@@ -70,7 +84,8 @@ namespace pusher
                 if(ec)
                     return handler(ec);
 
-                boost::asio::async_connect(socket_.next_layer(), endpoint, [this, handler](auto ec, auto) mutable
+                //boost::asio::async_connect(socket_.next_layer(), endpoint, [this, handler](auto ec, auto) mutable
+                boost::asio::async_connect(socket_.lowest_layer(), endpoint, [this, handler](auto ec, auto) mutable
                 {
                     if(ec)
                         return handler(ec);
@@ -92,7 +107,9 @@ namespace pusher
         {
             initialise();
 
-            boost::asio::connect(socket_.next_layer(), resolver_.resolve(boost::asio::ip::tcp::resolver::query{host_, "80"}));
+           
+            boost::asio::connect(socket_.lowest_layer(), resolver_.resolve(boost::asio::ip::tcp::resolver::query{host_, "443"}));
+            socket_.next_layer().handshake(boost::asio::ssl::stream_base::client);
             socket_.handshake(host_, handshake_resource_);
 
             read_impl();
@@ -104,7 +121,7 @@ namespace pusher
             socket_.close(boost::beast::websocket::close_code::normal);
         }
 
-        auto channel(std::string const& name)
+        auto channel(std::string const& name, std::string const& token = "", std::string const& channelData = "")
         {
             auto channel_result = filtered_channels_.filtered_.emplace(name, detail::client::signal{});
             auto& channel = channel_result.first->second;
@@ -114,7 +131,7 @@ namespace pusher
             result.first->second.connect_source(channel);
 
             if(inserted)
-                subscribe(name);
+                subscribe(name, token, channelData);
 
             return channel_proxy(&(result.first->second));
         }
@@ -132,9 +149,9 @@ namespace pusher
         }
 
     private:
-        auto subscribe(std::string const& channel)
+        auto subscribe(std::string const& channel, std::string const& token = "", std::string const& channelData = "")
         {
-            socket_.write(boost::asio::buffer(detail::client::make_subscription(channel)));
+            socket_.write(boost::asio::buffer(detail::client::make_subscription(channel, token, channelData)));
         }
 
         void read_impl()

@@ -11,7 +11,7 @@
 
 namespace pusher { namespace detail { namespace client
 {
-    inline std::string make_subscription(std::string const& channel)
+    inline std::string make_subscription(std::string const& channel, std::string const& token, std::string const& channelData)
     {
         rapidjson::StringBuffer sub_buf;
         rapidjson::Writer<rapidjson::StringBuffer> sub_writer(sub_buf);
@@ -21,11 +21,22 @@ namespace pusher { namespace detail { namespace client
         sub_writer.String("data");
         sub_writer.StartObject();
         sub_writer.String("channel");
-        sub_writer.String(channel);
+        sub_writer.String(channel.c_str());
+        if (!token.empty())
+        {
+            sub_writer.String("auth");
+            sub_writer.String(token.c_str());
+        }
+        if (!channelData.empty())
+        {
+            sub_writer.String("channel_data");
+            sub_writer.String(channelData.c_str());
+        }
         sub_writer.EndObject();
         sub_writer.EndObject();
         return {sub_buf.GetString(), sub_buf.GetSize()};
     }
+
 }}} // pusher::detail::client
 
 #endif // PUSHERPP_DETAIL_CLIENT_WRITE_HPP
