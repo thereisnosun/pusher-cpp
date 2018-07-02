@@ -58,7 +58,7 @@ namespace pusher
           , resolver_{ios}
           , host_{"ws-" + std::move(cluster) + ".pusher.com"}
           , handshake_resource_{"/app/" + std::move(key) + "?client=pusher++&version=0.01&protocol=7"}
-          , auth_end_point_{"/pusher/auth/?token=" + std::move(token)}
+
          , events_{}
           , filtered_channels_{detail::client::filtered_signal(&detail::client::by_channel)}
           , filtered_events_{detail::client::filtered_signal(&detail::client::by_name)}
