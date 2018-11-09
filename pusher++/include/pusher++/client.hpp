@@ -71,6 +71,19 @@ namespace pusher
           , filtered_events_{detail::client::filtered_signal(&detail::client::by_name)}
         {}
 
+        ~client()
+        {
+            try
+            {
+                disconnect();
+            }
+            catch(std::exception& except)
+            {
+                std::cout << "Caught exception - " << except.what() << std::endl;
+            }
+
+        }
+
 
         void initialise()
         {
