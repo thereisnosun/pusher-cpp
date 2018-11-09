@@ -31,11 +31,14 @@ namespace pusher
     template<typename SocketT>
     class client
     {
+    public:
         using signal_filter = detail::client::signal_filter<std::string(*)(event const&)>;
         boost::beast::websocket::stream<SocketT> socket_;
+        //boost::beast::websocket::stream<boost::asio::ssl::stream<boost::asio::ip::tcp::socket&>> socket_;
         boost::asio::ip::tcp::resolver resolver_;
         std::string host_;
         std::string handshake_resource_;
+        std::string auth_end_point_;
         boost::beast::flat_buffer read_buf_;
         detail::client::signal events_;
         signal_filter filtered_channels_;
@@ -43,23 +46,27 @@ namespace pusher
         signal_filter filtered_events_;
 
     public:
-        client(boost::asio::io_service& ios, std::string key, std::string cluster = "mt1")
+        client(boost::asio::io_service& ios, std::string key, std::string host)
           : socket_{ios}
           , resolver_{ios}
-          , host_{"ws-" + std::move(cluster) + ".pusher.com"}
+//          , host_{"ws-" + std::move(cluster) + ".pusher.com"}
+          //, host_{"realtime-pusher.ably.io"}
+          , host_{host}
           , handshake_resource_{"/app/" + std::move(key) + "?client=pusher++&version=0.01&protocol=7"}
           , events_{}
           , filtered_channels_{detail::client::filtered_signal(&detail::client::by_channel)}
           , filtered_events_{detail::client::filtered_signal(&detail::client::by_name)}
         {}
 
-        client(boost::asio::io_service& ios, boost::asio::ssl::context& ctx, std::string key, std::string token, std::string cluster = "mt1")
+        client(boost::asio::io_service& ios, boost::asio::ssl::context& ctx, std::string key, std::string token, std::string host)
           : socket_{ios, ctx}
           , resolver_{ios}
-          , host_{"ws-" + std::move(cluster) + ".pusher.com"}
+          //, host_{"ws-" + std::move(cluster) + ".pusher.com"}
+          //, host_{"realtime-pusher.ably.io"}
+          , host_{host}
           , handshake_resource_{"/app/" + std::move(key) + "?client=pusher++&version=0.01&protocol=7"}
-
-         , events_{}
+          , auth_end_point_{"/pusher/auth/?token=" + std::move(token)}
+          , events_{}
           , filtered_channels_{detail::client::filtered_signal(&detail::client::by_channel)}
           , filtered_events_{detail::client::filtered_signal(&detail::client::by_name)}
         {}
@@ -84,7 +91,6 @@ namespace pusher
                 if(ec)
                     return handler(ec);
 
-                //boost::asio::async_connect(socket_.next_layer(), endpoint, [this, handler](auto ec, auto) mutable
                 boost::asio::async_connect(socket_.lowest_layer(), endpoint, [this, handler](auto ec, auto) mutable
                 {
                     if(ec)
@@ -107,10 +113,13 @@ namespace pusher
         {
             initialise();
 
-           
+            std::cout << "BEFORE CONNECT: Is open  - " << socket_.is_open() << std::endl;
+            //boost::asio::connect(socket_.next_layer(), resolver_.resolve(boost::asio::ip::tcp::resolver::query{host_, "80"}));
+            //boost::asio::connect(socket_.lowest_layer(), resolver_.resolve(boost::asio::ip::tcp::resolver::query{host_, "443"}));
             boost::asio::connect(socket_.lowest_layer(), resolver_.resolve(boost::asio::ip::tcp::resolver::query{host_, "443"}));
             socket_.next_layer().handshake(boost::asio::ssl::stream_base::client);
             socket_.handshake(host_, handshake_resource_);
+            std::cout << "AFTER CONNECT: Is open  - " << socket_.is_open() << std::endl;
 
             read_impl();
         }
